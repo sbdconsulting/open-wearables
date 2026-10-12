@@ -81,6 +81,7 @@ class WebhookEventType(StrEnum):
 
     # Recovery
     SERIES_GARMIN_BODY_BATTERY = "series.garmin_body_battery.created"
+    SERIES_OURA_READINESS_SCORE = "series.oura_readiness_score.created"  # MyBya fork
 
     # SpO2
     SERIES_OXYGEN_SATURATION = "series.oxygen_saturation.created"
@@ -237,6 +238,7 @@ EVENT_TYPE_DESCRIPTIONS: dict[WebhookEventType, str] = {
     WebhookEventType.SERIES_HEART_RATE_VARIABILITY_SDNN: "HRV SDNN samples were ingested.",
     WebhookEventType.SERIES_HEART_RATE_VARIABILITY_RMSSD: "HRV RMSSD samples were ingested.",
     WebhookEventType.SERIES_GARMIN_BODY_BATTERY: "Garmin body battery samples were ingested.",
+    WebhookEventType.SERIES_OURA_READINESS_SCORE: "Oura daily readiness scores were ingested.",
     WebhookEventType.SERIES_OXYGEN_SATURATION: "Blood oxygen saturation (SpO2) samples were ingested.",
     WebhookEventType.SERIES_PERIPHERAL_PERFUSION_INDEX: "Peripheral perfusion index samples were ingested.",
     WebhookEventType.SERIES_BLOOD_GLUCOSE: "Blood glucose samples were ingested.",
@@ -340,6 +342,7 @@ EVENT_TYPE_GROUPS: dict[str, list[str]] = {
     ],
     WebhookEventType.RECOVERY_SCORE_CREATED: [
         WebhookEventType.SERIES_GARMIN_BODY_BATTERY,
+        WebhookEventType.SERIES_OURA_READINESS_SCORE,
     ],
     WebhookEventType.SPO2_CREATED: [
         WebhookEventType.SERIES_OXYGEN_SATURATION,

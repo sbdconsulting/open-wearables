@@ -12,6 +12,9 @@ ACTIVITY_SERIES: dict[str, SeriesType] = {
 READINESS_SERIES: dict[str, SeriesType] = {
     "temperature_deviation": SeriesType.skin_temperature_deviation,
     "temperature_trend_deviation": SeriesType.skin_temperature_trend_deviation,
+    # MyBya fork: upstream keeps the readiness score only as a HealthScore,
+    # which is never sent as a webhook. As a series it reaches subscribers.
+    "recovery_score": SeriesType.oura_readiness_score,
 }
 SLEEP_INTERVAL_SERIES: dict[str, SeriesType] = {
     "heart_rate": SeriesType.heart_rate,

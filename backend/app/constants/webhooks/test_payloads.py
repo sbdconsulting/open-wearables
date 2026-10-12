@@ -193,6 +193,9 @@ EXAMPLE_PAYLOADS: dict[str, dict] = {
     WebhookEventType.SERIES_GARMIN_BODY_BATTERY: _ts_payload(
         WebhookEventType.SERIES_GARMIN_BODY_BATTERY, "garmin_body_battery", "garmin", "score", 65.0
     ),
+    WebhookEventType.SERIES_OURA_READINESS_SCORE: _ts_payload(
+        WebhookEventType.SERIES_OURA_READINESS_SCORE, "oura_readiness_score", "oura", "score", 82.0
+    ),
     # SpO2
     WebhookEventType.SERIES_OXYGEN_SATURATION: _ts_payload(
         WebhookEventType.SERIES_OXYGEN_SATURATION, "oxygen_saturation", "oura", "%", 97.0

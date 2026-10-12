@@ -167,6 +167,12 @@ class SeriesType(str, Enum):
     withings_metabolic_age = "withings_metabolic_age"
 
     # =========================================================================
+    # OURA-SPECIFIC METRICS (MyBya fork, IDs 900-909 — kept far from upstream's
+    # ranges so a future upstream addition can't collide with a persisted ID)
+    # =========================================================================
+    oura_readiness_score = "oura_readiness_score"  # Oura daily readiness score (0-100)
+
+    # =========================================================================
     # OTHER (IDs 500-)
     # =========================================================================
 
@@ -322,6 +328,10 @@ SERIES_TYPE_DEFINITIONS: list[tuple[int, SeriesType, str]] = [
     (240, SeriesType.withings_pulse_wave_velocity, "m_per_s"),
     (241, SeriesType.withings_metabolic_age, "years"),
     # -------------------------------------------------------------------------
+    # OURA-SPECIFIC METRICS (MyBya fork, IDs 900-909)
+    # -------------------------------------------------------------------------
+    (900, SeriesType.oura_readiness_score, "score"),
+    # -------------------------------------------------------------------------
     # OTHER (IDs 500-)
     # -------------------------------------------------------------------------
     (500, SeriesType.electrodermal_activity, "count"),
@@ -347,6 +357,7 @@ SERIES_TYPE_UNIT_BY_ENUM: dict[SeriesType, str] = {enum: unit for _, enum, unit 
 # Only series types that need a meaningful clarification have an entry here;
 SERIES_TYPE_DESCRIPTION_BY_ENUM: dict[SeriesType, str] = {
     SeriesType.garmin_body_battery: "Intraday body battery readings (0-100), one sample per measurement",
+    SeriesType.oura_readiness_score: "Oura daily readiness score (0-100), one sample per day",
 }
 
 
@@ -387,6 +398,7 @@ _CATEGORY_RANGES: list[tuple[range, str]] = [
     (range(180, 200), "Activity - Generic"),
     (range(200, 220), "Environmental"),
     (range(220, 250), "Provider-Specific"),  # 220-239 Garmin, 240-249 Withings
+    (range(900, 910), "Provider-Specific"),  # MyBya fork: 900-909 Oura
     (range(500, 600), "Other"),
 ]
 
