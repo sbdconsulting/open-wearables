@@ -1,16 +1,20 @@
 """Tests for Oura247Data normalization."""
 
 from datetime import datetime, timezone
+from typing import Any
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 
 from app.constants.sleep import SleepStageType
-from app.schemas.enums import SeriesType
+from app.constants.webhooks.events import SERIES_TYPE_TO_GRANULAR_EVENT, SERIES_TYPE_TO_GROUP_EVENT
+from app.schemas.enums import SeriesType, get_series_type_id
 from app.schemas.providers.oura.imports import OuraMetJSON
-from app.services.providers.oura.coverage import ACTIVITY_SERIES
+from app.services.providers.oura.coverage import ACTIVITY_SERIES, READINESS_SERIES
 from app.services.providers.oura.data_247 import Oura247Data
 from app.services.providers.oura.strategy import OuraStrategy
+from tests.factories import UserFactory
 
 
 class TestOura247SleepNormalization:
@@ -447,3 +451,61 @@ class TestOura247MetSeriesExpansion:
         met = OuraMetJSON(interval=60, items=[1.0, 1.1], timestamp="2024-01-15T00:00:00+00:00")
 
         assert data_247._expand_met_series(met, None) == []
+
+
+class TestOura247ReadinessScoreWebhook:
+    """MyBya fork: the readiness score is saved as a series so it reaches webhook subscribers.
+
+    Upstream stores it only as a HealthScore, which no webhook carries — so a
+    subscriber never saw Oura's headline recovery number.
+    """
+
+    @pytest.fixture
+    def data_247(self) -> Oura247Data:
+        return OuraStrategy().data_247
+
+    def _readiness(self, **overrides: object) -> dict:
+        return {
+            "id": "readiness-abc123",
+            "day": "2024-01-15",
+            "score": 82,
+            "temperature_deviation": 0.15,
+            "temperature_trend_deviation": 0.05,
+            "timestamp": "2024-01-15T07:00:00+00:00",
+            **overrides,
+        }
+
+    def _emitted(self, data_247: Oura247Data, db: Any, mock_webhook_dispatch: Any, readiness: dict) -> dict:
+        user = UserFactory()
+        normalized = data_247.normalize_readiness([readiness], user.id)
+        with patch("app.services.outgoing_webhooks.events.svix_service.is_enabled", return_value=True):
+            data_247.save_readiness_data(db, user.id, normalized)
+        return {call.args[0]: call.args[1]["data"] for call in mock_webhook_dispatch.delay.call_args_list}
+
+    def test_score_is_a_readiness_series(self) -> None:
+        assert READINESS_SERIES["recovery_score"] is SeriesType.oura_readiness_score
+
+    def test_score_is_emitted_on_group_and_granular_events(
+        self, data_247: Oura247Data, db: Any, mock_webhook_dispatch: Any
+    ) -> None:
+        events = self._emitted(data_247, db, mock_webhook_dispatch, self._readiness())
+
+        granular = events["series.oura_readiness_score.created"]
+        assert events["recovery_score.created"] == granular
+        assert granular["provider"] == "oura"
+        assert granular["series_type"] == "oura_readiness_score"
+        assert [float(s["value"]) for s in granular["samples"]] == [82.0]
+
+    def test_missing_score_emits_nothing_for_it(
+        self, data_247: Oura247Data, db: Any, mock_webhook_dispatch: Any
+    ) -> None:
+        events = self._emitted(data_247, db, mock_webhook_dispatch, self._readiness(score=None))
+        assert "series.oura_readiness_score.created" not in events
+
+    def test_garmin_body_battery_keeps_its_own_granular_event(self) -> None:
+        """Both share the recovery group event; consumers tell them apart by the granular one."""
+        assert SERIES_TYPE_TO_GROUP_EVENT["oura_readiness_score"] == SERIES_TYPE_TO_GROUP_EVENT["garmin_body_battery"]
+        assert SERIES_TYPE_TO_GRANULAR_EVENT["garmin_body_battery"] == "series.garmin_body_battery.created"
+
+    def test_id_is_reserved_in_the_fork_range(self) -> None:
+        assert get_series_type_id(SeriesType.oura_readiness_score) == 900
