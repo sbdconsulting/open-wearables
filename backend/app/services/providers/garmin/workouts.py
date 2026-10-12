@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Iterable
 from uuid import UUID, uuid4
@@ -119,8 +119,8 @@ class GarminWorkouts(BaseWorkoutsTemplate):
             end_ts = int(datetime.now().timestamp())
 
         # Convert to datetime for chunked fetching
-        start_dt = datetime.fromtimestamp(start_ts)
-        end_dt = datetime.fromtimestamp(end_ts)
+        start_dt = datetime.fromtimestamp(start_ts, tz=timezone.utc)
+        end_dt = datetime.fromtimestamp(end_ts, tz=timezone.utc)
 
         # Check if range exceeds 24 hours - if so, use chunked fetching
         if (end_dt - start_dt) > timedelta(hours=24):
@@ -159,8 +159,8 @@ class GarminWorkouts(BaseWorkoutsTemplate):
 
     def _extract_dates(self, start_timestamp: int, end_timestamp: int) -> tuple[datetime, datetime]:
         """Extract start and end dates from timestamps."""
-        start_date = datetime.fromtimestamp(start_timestamp)
-        end_date = datetime.fromtimestamp(end_timestamp)
+        start_date = datetime.fromtimestamp(start_timestamp, tz=timezone.utc)
+        end_date = datetime.fromtimestamp(end_timestamp, tz=timezone.utc)
         return start_date, end_date
 
     def _build_metrics(self, raw_workout: GarminActivityJSON) -> EventRecordMetrics:

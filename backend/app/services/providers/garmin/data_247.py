@@ -35,6 +35,7 @@ from app.services.providers.garmin.coverage import ACTIVITY_SAMPLE_SERIES, DAILI
 from app.services.providers.templates.base_247_data import Base247DataTemplate
 from app.services.providers.templates.base_oauth import BaseOAuthTemplate
 from app.services.raw_payload_storage import store_fit_file
+from app.services.timeseries_service import timeseries_service
 from app.utils.dates import offset_to_iso
 from app.utils.structured_logging import log_structured
 
@@ -571,7 +572,7 @@ class Garmin247Data(Base247DataTemplate):
         samples = self._build_dailies_samples(user_id, daily_data)
         counts: int = 0
         if samples:
-            counts = self.data_point_repo.bulk_create(db, samples)
+            counts = timeseries_service.bulk_create_samples(db, samples)
         if health_scores:
             health_score_service.bulk_create(db, health_scores)
             db.commit()
@@ -765,7 +766,7 @@ class Garmin247Data(Base247DataTemplate):
         samples = self._build_epochs_samples(user_id, normalized_epochs)
         counts: int = 0
         if samples:
-            counts = self.data_point_repo.bulk_create(db, samples)
+            counts = timeseries_service.bulk_create_samples(db, samples)
         return counts
 
     # -------------------------------------------------------------------------
@@ -877,7 +878,7 @@ class Garmin247Data(Base247DataTemplate):
         samples = self._build_body_comp_samples(user_id, raw_body_comp)
         counts: int = 0
         if samples:
-            counts = self.data_point_repo.bulk_create(db, samples)
+            counts = timeseries_service.bulk_create_samples(db, samples)
         return counts
 
     # -------------------------------------------------------------------------
@@ -961,7 +962,7 @@ class Garmin247Data(Base247DataTemplate):
         samples = self._build_hrv_samples(user_id, raw_hrv)
         counts: int = 0
         if samples:
-            counts = self.data_point_repo.bulk_create(db, samples)
+            counts = timeseries_service.bulk_create_samples(db, samples)
         return counts
 
     # -------------------------------------------------------------------------
@@ -1194,7 +1195,7 @@ class Garmin247Data(Base247DataTemplate):
         samples = self._build_stress_samples(user_id, raw_stress)
         counts: int = 0
         if samples:
-            counts = self.data_point_repo.bulk_create(db, samples)
+            counts = timeseries_service.bulk_create_samples(db, samples)
         if score := self._normalize_body_battery_health_score(user_id, raw_stress):
             health_score_service.bulk_create(db, [score])
             db.commit()
@@ -1273,7 +1274,7 @@ class Garmin247Data(Base247DataTemplate):
         samples = self._build_respiration_samples(user_id, raw_respiration)
         counts: int = 0
         if samples:
-            counts = self.data_point_repo.bulk_create(db, samples)
+            counts = timeseries_service.bulk_create_samples(db, samples)
         return counts
 
     # -------------------------------------------------------------------------
@@ -1350,7 +1351,7 @@ class Garmin247Data(Base247DataTemplate):
         samples = self._build_pulse_ox_samples(user_id, raw_pulse_ox)
         counts: int = 0
         if samples:
-            counts = self.data_point_repo.bulk_create(db, samples)
+            counts = timeseries_service.bulk_create_samples(db, samples)
         return counts
 
     # -------------------------------------------------------------------------
@@ -1430,7 +1431,7 @@ class Garmin247Data(Base247DataTemplate):
         samples = self._build_blood_pressure_samples(user_id, raw_bp)
         counts: int = 0
         if samples:
-            counts = self.data_point_repo.bulk_create(db, samples)
+            counts = timeseries_service.bulk_create_samples(db, samples)
         return counts
 
     # -------------------------------------------------------------------------
@@ -1500,7 +1501,7 @@ class Garmin247Data(Base247DataTemplate):
         samples = self._build_user_metrics_samples(user_id, raw_metrics)
         counts: int = 0
         if samples:
-            counts = self.data_point_repo.bulk_create(db, samples)
+            counts = timeseries_service.bulk_create_samples(db, samples)
         return counts
 
     # -------------------------------------------------------------------------
@@ -1553,7 +1554,7 @@ class Garmin247Data(Base247DataTemplate):
         samples = self._build_skin_temp_samples(user_id, raw_skin_temp)
         counts: int = 0
         if samples:
-            counts = self.data_point_repo.bulk_create(db, samples)
+            counts = timeseries_service.bulk_create_samples(db, samples)
         return counts
 
     # -------------------------------------------------------------------------
@@ -1685,7 +1686,7 @@ class Garmin247Data(Base247DataTemplate):
         samples = self._build_health_snapshot_samples(user_id, raw_snapshot)
         counts: int = 0
         if samples:
-            counts = self.data_point_repo.bulk_create(db, samples)
+            counts = timeseries_service.bulk_create_samples(db, samples)
         return counts
 
     # -------------------------------------------------------------------------
@@ -2061,7 +2062,7 @@ class Garmin247Data(Base247DataTemplate):
 
         # Single bulk insert for DataPointSeries
         if all_samples:
-            count += self.data_point_repo.bulk_create(db, all_samples)
+            count += timeseries_service.bulk_create_samples(db, all_samples)
 
         # Single bulk insert for EventRecords
         if all_records:

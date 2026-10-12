@@ -858,3 +858,83 @@ class TestGarmin247Data:
 
         mock_bulk_create.assert_called_once()
         assert count == 1
+
+
+class _InlineThread:
+    """Runs the post-commit webhook emitter synchronously so the test is deterministic."""
+
+    def __init__(self, target: Any, args: tuple = (), daemon: bool | None = None) -> None:
+        self._target, self._args = target, args
+
+    def start(self) -> None:
+        self._target(*self._args)
+
+
+class TestGarmin247SeriesWebhooks:
+    """MyBya fork: Garmin 24/7 samples reach webhook subscribers.
+
+    Upstream saved them with DataPointSeriesRepository.bulk_create directly, which never
+    emits; every other provider goes through timeseries_service.bulk_create_samples.
+    So no Garmin resting HR, HRV or body battery ever reached a subscriber.
+    """
+
+    @pytest.fixture
+    def garmin_247(self) -> Garmin247Data:
+        oauth = GarminOAuth(
+            user_repo=MagicMock(),
+            connection_repo=UserConnectionRepository(),
+            provider_name="garmin",
+            api_base_url="https://apis.garmin.com",
+        )
+        return Garmin247Data(provider_name="garmin", api_base_url="https://apis.garmin.com", oauth=oauth)
+
+    def _emitted(
+        self,
+        garmin_247: Garmin247Data,
+        db: Session,
+        mock_webhook_dispatch: Any,
+        summary_type: str,
+        item: dict[str, Any],
+    ) -> dict[str, dict]:
+        user = UserFactory()
+        with (
+            patch("app.services.outgoing_webhooks.events.svix_service.is_enabled", return_value=True),
+            patch("app.services.timeseries_service.svix_service.is_enabled", return_value=True),
+            patch("app.services.timeseries_service.threading.Thread", _InlineThread),
+        ):
+            garmin_247.process_items_batch(db, user.id, summary_type, [item])
+            db.commit()
+        return {c.args[0]: c.args[1]["data"] for c in mock_webhook_dispatch.delay.call_args_list}
+
+    def test_dailies_emit_resting_heart_rate_with_local_offset(
+        self, garmin_247: Garmin247Data, db: Session, mock_webhook_dispatch: Any
+    ) -> None:
+        daily = {
+            "summaryId": "d1",
+            "calendarDate": "2026-10-11",
+            "startTimeInSeconds": 1791669600,  # 22:00Z = local 00:00
+            "startTimeOffsetInSeconds": 7200,
+            "durationInSeconds": 86400,
+            "restingHeartRateInBeatsPerMinute": 49,
+        }
+        events = self._emitted(garmin_247, db, mock_webhook_dispatch, "dailies", daily)
+
+        sample = events["series.resting_heart_rate.created"]["samples"][0]
+        assert (sample["timestamp"], sample["zone_offset"], sample["value"]) == (
+            "2026-10-10T22:00:00+00:00",
+            "+02:00",
+            49.0,
+        )
+
+    def test_hrv_emits_rmssd(self, garmin_247: Garmin247Data, db: Session, mock_webhook_dispatch: Any) -> None:
+        hrv = {
+            "summaryId": "h1",
+            "calendarDate": "2026-10-11",
+            "startTimeInSeconds": 1791667800,
+            "startTimeOffsetInSeconds": 7200,
+            "lastNightAvg": 52,
+            "hrvValues": {"300": 44},
+        }
+        events = self._emitted(garmin_247, db, mock_webhook_dispatch, "hrv", hrv)
+
+        assert [s["value"] for s in events["series.heart_rate_variability_rmssd.created"]["samples"]] == [52.0, 44.0]
