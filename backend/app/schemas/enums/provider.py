@@ -18,6 +18,7 @@ class ProviderName(str, Enum):
     ULTRAHUMAN = "ultrahuman"
     SENSORBIO = "sensorbio"
     WITHINGS = "withings"
+    WAHOO = "wahoo"  # MyBya fork: not in upstream 0.9.0
     UNKNOWN = "unknown"
     INTERNAL = "internal"
 
@@ -51,4 +52,5 @@ DEFAULT_PROVIDER_PRIORITY: dict[ProviderName, int] = {
     ProviderName.POLAR: 3,
     ProviderName.SUUNTO: 4,
     ProviderName.WHOOP: 5,
+    ProviderName.WAHOO: 6,
 }

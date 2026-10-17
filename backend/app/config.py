@@ -244,6 +244,22 @@ class Settings(BaseSettings):
     withings_webhook_token: SecretStr | None = None
     withings_default_scope: str = "user.info,user.metrics,user.activity"
 
+    # WAHOO OAUTH SETTINGS (MyBya fork; upstream 0.9.0 has no Wahoo provider)
+    # The redirect URI is derived from API_BASE_URL and must equal the one
+    # registered on the Wahoo app: {API_BASE_URL}/api/v1/oauth/wahoo/callback.
+    wahoo_client_id: str | None = None
+    wahoo_client_secret: SecretStr | None = None
+    # Ingest only. workouts_write is deliberately not requested; offline_data is
+    # what makes Wahoo send webhooks while the athlete is not in our app.
+    wahoo_default_scope: str = "user_read workouts_read offline_data"
+    # The token configured on the Wahoo app; Wahoo puts it in every webhook body.
+    # Deliberately NOT derived from SECRET_KEY like Strava/Oura: Wahoo cannot be
+    # told our secret, so a derived value would reject every real delivery while
+    # looking configured. Unset means every Wahoo webhook is rejected.
+    wahoo_webhook_token: SecretStr | None = None
+    # GET /v1/workouts page size. Wahoo's default is 30; no maximum is documented.
+    wahoo_events_per_page: int = Field(30, ge=1)
+
     # EMAIL SETTINGS (Resend)
     resend_api_key: SecretStr | None = None
     email_from_address: str | None = None

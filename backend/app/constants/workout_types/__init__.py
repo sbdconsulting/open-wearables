@@ -9,6 +9,7 @@ from .sdk import get_activity_name as get_activity_name_sdk
 from .sdk import get_unified_workout_type as get_unified_sdk_workout_type
 from .strava import get_unified_workout_type as get_unified_strava_workout_type
 from .suunto import get_unified_workout_type as get_unified_suunto_workout_type
+from .wahoo import get_unified_workout_type as get_unified_wahoo_workout_type
 from .whoop import get_unified_workout_type as get_unified_whoop_workout_type
 from .withings import get_unified_workout_type as get_unified_withings_workout_type
 
@@ -26,4 +27,5 @@ __all__ = [
     "get_unified_whoop_workout_type",
     "get_unified_fitbit_workout_type",
     "get_unified_withings_workout_type",
+    "get_unified_wahoo_workout_type",
 ]

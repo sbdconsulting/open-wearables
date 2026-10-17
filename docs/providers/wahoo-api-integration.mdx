@@ -1,0 +1,64 @@
+---
+title: "Wahoo"
+description: "Connect Wahoo (ELEMNT, KICKR, RIVAL and the Wahoo apps) through the Wahoo Cloud API. MyBya fork: not in upstream Open Wearables 0.9.0."
+---
+
+<Note>
+This provider exists only in the `sbdconsulting/open-wearables` fork. Field names follow
+the [Wahoo Cloud API reference](https://cloud-api.wahooligan.com), read 2026-10-16.
+</Note>
+
+## What it delivers
+
+Workouts only. Wahoo's API has no daily, sleep or recovery data.
+
+| From | Data |
+|------|------|
+| Workout summary (webhook or `GET /v1/workouts`) | Start, type, elapsed and moving time, distance, ascent, calories, average HR / power / cadence / speed |
+| The summary's FIT file (Wahoo CDN) | Per-second HR, power, cadence, speed, GPS, elevation, temperature; max HR / power / speed; the recording device (`device_info` creator `product_name`, e.g. `ELEMNT BOLT`) |
+
+Wahoo shares only workouts recorded by Wahoo's own apps and devices
+(`fitness_app_id` < 1000); third-party uploads are never returned.
+
+## Setup
+
+1. Create an app at [developers.wahooligan.com](https://developers.wahooligan.com/applications):
+   - **Confidential:** Yes
+   - **Redirect URI:** `{API_BASE_URL}/api/v1/oauth/wahoo/callback`
+   - **Scopes:** `user_read workouts_read offline_data` (`offline_data` is required for webhooks)
+   - **Webhook:** enabled, URI `{API_BASE_URL}/api/v1/webhooks/wahoo`
+     (`/api/v1/providers/wahoo/webhooks` also works), and a random **webhook token**
+2. Set on every backend process (app and Celery workers):
+
+```bash
+WAHOO_CLIENT_ID=...
+WAHOO_CLIENT_SECRET=...
+WAHOO_WEBHOOK_TOKEN=...   # the token from the Wahoo app; unset rejects every webhook
+```
+
+## How it syncs
+
+- **Webhook** (`workout_summary`): Wahoo puts the app's token in the JSON body as
+  `webhook_token`; deliveries without it are rejected with 401. The token is dropped
+  before the payload is stored or queued.
+- **Pull:** `live_sync_mode` defaults to `pull` (hourly), plus a 90-day backfill on connect.
+  `GET /v1/workouts` has no date filter, so the pull pages newest-first until it passes the
+  window start.
+- Saving is idempotent on the Wahoo workout id. A later edit in Wahoo is not re-applied.
+- Streams are saved before the workout, so `workout.created` subscribers can query them at once.
+
+## Tokens and revocation
+
+- Access tokens last 2 hours. Wahoo allows 10 unrevoked tokens per user and revokes the old
+  pair only when the new access token is used, so tokens are refreshed only immediately before
+  an API call. FIT downloads are not API calls.
+- Disconnect and data purge call `DELETE /v1/permissions`, refreshing the token once if it
+  has expired.
+- Wahoo sends no deauthorization webhook. A revocation in the athlete's Wahoo account is
+  noticed when the next refresh is rejected, which revokes the connection and emits
+  `connection.revoked`.
+
+## Rate limits
+
+Production apps: 200 requests per 5 minutes, 1,000 per hour, 5,000 per day. Token requests
+and file downloads don't count.

@@ -32,6 +32,7 @@ from .token import router as token_router
 from .user_invitation_code import router as user_invitation_code_router
 from .users import router as users_router
 from .vendor_workouts import router as vendor_workouts_router
+from .wahoo_webhooks import router as wahoo_webhooks_router
 from .webhooks import router as providers_webhooks_router
 
 v1_router = APIRouter()
@@ -72,6 +73,9 @@ v1_router.include_router(priorities_router, tags=["Internal: Priorities"])
 # --- System: provider webhooks ---
 v1_router.include_router(oura_webhooks_router, prefix="/oura/webhooks", tags=["System: Oura Webhooks"])
 v1_router.include_router(strava_webhooks_router, prefix="/strava/webhooks", tags=["System: Strava Webhooks"])
+# MyBya fork: the URI registered on the Wahoo app. Sits under the outgoing-webhooks
+# prefix, which only defines /endpoints, /event-types and /messages paths.
+v1_router.include_router(wahoo_webhooks_router, prefix="/webhooks/wahoo", tags=["System: Wahoo Webhooks"])
 v1_router.include_router(
     providers_webhooks_router, prefix="/providers/{provider}/webhooks", tags=["System: Provider Webhooks"]
 )

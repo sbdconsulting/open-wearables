@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Neutral placeholder (not Wahoo's logo). Replace with the mark from Wahoo's Media Kit before go-live. -->
+  <rect width="64" height="64" rx="12" fill="#1F2937"/>
+  <path d="M12 20l7 24h4l5-16 5 16h4l7-24h-5l-4 15-5-15h-4l-5 15-4-15z" fill="#FFFFFF"/>
+</svg>
