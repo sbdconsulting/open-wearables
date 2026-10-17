@@ -678,6 +678,33 @@ class TestDataPointSeriesRepository:
         assert (second.inserted, second.updated) == (0, 1)
         assert int(second) == 1
 
+    def test_bulk_create_keeps_gps_precision(self, db: Session, series_repo: DataPointSeriesRepository) -> None:
+        """Coordinates survive the round trip at GPS precision, not rounded to 0.001 deg (~111 m)."""
+        user = UserFactory()
+        ts = datetime(2099, 1, 1, tzinfo=timezone.utc)
+        lat = Decimal("40.7127753")
+        lng = Decimal("-74.0059728")
+
+        series_repo.bulk_create(
+            db,
+            [
+                TimeSeriesSampleCreate(
+                    id=uuid4(),
+                    user_id=user.id,
+                    source="garmin",
+                    recorded_at=ts,
+                    value=value,
+                    series_type=series_type,
+                )
+                for value, series_type in ((lat, SeriesType.latitude), (lng, SeriesType.longitude))
+            ],
+        )
+
+        stored = {
+            row.value for row in db.query(DataPointSeries).join(DataSource).filter(DataSource.user_id == user.id).all()
+        }
+        assert stored == {lat, lng}
+
     def test_bulk_create_empty_returns_zero_counts(self, db: Session, series_repo: DataPointSeriesRepository) -> None:
         """An empty batch writes nothing and reports zero inserted/updated."""
         counts = series_repo.bulk_create(db, [])

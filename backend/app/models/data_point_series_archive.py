@@ -10,7 +10,7 @@ from app.mappings import (
     FKSeriesTypeDefinition,
     PrimaryKey,
     Indexed,
-    numeric_10_3,
+    numeric_16_7,
 )
 from app.schemas.enums import AggregationMethod
 
@@ -38,5 +38,5 @@ class DataPointSeriesArchive(BaseDbModel):
     series_type_definition_id: Mapped[FKSeriesTypeDefinition]
     bucket_start_at: Mapped[Indexed[datetime]]
     aggregation_type: Mapped[AggregationMethod]
-    value: Mapped[numeric_10_3]
+    value: Mapped[numeric_16_7]
     sample_count: Mapped[int]

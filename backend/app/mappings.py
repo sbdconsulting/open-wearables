@@ -38,6 +38,10 @@ numeric_6_3 = Annotated[Decimal, mapped_column(Numeric(6, 3))]
 numeric_10_3 = Annotated[Decimal, mapped_column(Numeric(10, 3))]
 numeric_10_2 = Annotated[Decimal, mapped_column(Numeric(10, 2))]
 numeric_15_5 = Annotated[Decimal, mapped_column(Numeric(15, 5))]
+# Time-series sample values. Scale 7 because latitude/longitude share this column:
+# at scale 3 a coordinate is rounded to 0.001 deg (~111 m), which turns a GPS
+# track into a staircase. 7 places is ~1 cm and keeps 9 integer digits.
+numeric_16_7 = Annotated[Decimal, mapped_column(Numeric(16, 7))]
 
 # Custom foreign keys
 FKDeveloper = Annotated[UUID, mapped_column(ForeignKey("developer.id", ondelete="SET NULL"))]
