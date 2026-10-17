@@ -12,6 +12,7 @@ from app.services.providers.sensorbio.strategy import SensorBioStrategy
 from app.services.providers.strava.strategy import StravaStrategy
 from app.services.providers.suunto.strategy import SuuntoStrategy
 from app.services.providers.ultrahuman.strategy import UltrahumanStrategy
+from app.services.providers.wahoo.strategy import WahooStrategy
 from app.services.providers.whoop.strategy import WhoopStrategy
 from app.services.providers.withings.strategy import WithingsStrategy
 
@@ -50,5 +51,7 @@ class ProviderFactory:
                 return UltrahumanStrategy()
             case ProviderName.WITHINGS.value:
                 return WithingsStrategy()
+            case ProviderName.WAHOO.value:
+                return WahooStrategy()
             case _:
                 raise ValueError(f"Unknown provider: {provider_name}")
