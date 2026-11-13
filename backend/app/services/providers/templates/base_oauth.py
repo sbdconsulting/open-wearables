@@ -31,6 +31,26 @@ from app.utils.structured_logging import log_structured
 logger = logging.getLogger(__name__)
 
 
+class ProviderAccountNotLinkedError(Exception):
+    """MyBya: consent succeeded, but the provider account behind it has no data to share.
+
+    Google Health is the case that needs this: a Google account that has not been
+    through Fitbit's move to Google accounts passes OAuth normally, and then every
+    data call returns 400 ACCOUNT_NOT_LINKED. Saving that connection would show the
+    athlete "Connected" and then deliver nothing, silently. Raising this instead
+    lets the callback send them back with a reason they can act on.
+
+    ``oauth_state`` is filled in by ``handle_callback`` so the route knows where
+    to send the athlete.
+    """
+
+    def __init__(self, provider: str, signup_url: str | None = None) -> None:
+        super().__init__(f"{provider} account is not linked to a data source")
+        self.provider = provider
+        self.signup_url = signup_url
+        self.oauth_state: OAuthState | None = None
+
+
 class BaseOAuthTemplate(ABC):
     """Base template for OAuth 2.0 authentication flow."""
 
@@ -118,7 +138,13 @@ class BaseOAuthTemplate(ABC):
 
         token_response = self._exchange_token(code, code_verifier)
 
-        user_info = self._get_provider_user_info(token_response, str(oauth_state.user_id))
+        try:
+            user_info = self._get_provider_user_info(token_response, str(oauth_state.user_id))
+        except ProviderAccountNotLinkedError as e:
+            # No connection is saved, so no connection.created goes out and no
+            # backfill starts: the athlete is simply not connected yet.
+            e.oauth_state = oauth_state
+            raise
 
         self._save_connection(db, oauth_state.user_id, token_response, user_info, oauth_state)
 

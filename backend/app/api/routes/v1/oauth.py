@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -19,6 +20,7 @@ from app.services import DeveloperDep, user_connection_service
 from app.services.provider_settings_service import ProviderSettingsService
 from app.services.providers.base_strategy import BaseProviderStrategy
 from app.services.providers.factory import ProviderFactory
+from app.services.providers.templates.base_oauth import ProviderAccountNotLinkedError
 
 router = APIRouter()
 factory = ProviderFactory()
@@ -98,7 +100,10 @@ def oauth_callback(
     strategy = get_oauth_strategy(provider_name)
 
     assert strategy.oauth
-    oauth_state = strategy.oauth.handle_callback(db, code, state)
+    try:
+        oauth_state = strategy.oauth.handle_callback(db, code, state)
+    except ProviderAccountNotLinkedError as e:
+        return _account_not_linked_redirect(provider_name, e)
 
     # Stamp last_synced_at=now so the first periodic sync uses the connection
     # timestamp as its live-sync cursor and won't attempt to pull all history.
@@ -136,6 +141,30 @@ def oauth_callback(
         url=f"/api/v1/oauth/success?provider={provider_name.value}&user_id={oauth_state.user_id}",
         status_code=303,
     )
+
+
+def _with_query(url: str, extra: dict[str, str]) -> str:
+    """Append ``extra`` to ``url``'s query string, keeping what is already there."""
+    parts = urlsplit(url)
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k not in extra]
+    query.extend(extra.items())
+    return urlunsplit(parts._replace(query=urlencode(query)))
+
+
+def _account_not_linked_redirect(provider_name: ProviderName, error: ProviderAccountNotLinkedError) -> RedirectResponse:
+    """MyBya: send the athlete back to the app with a reason it can explain.
+
+    ``ow_error`` / ``ow_provider`` are read by MyBya's Integrations page. Without a
+    redirect_uri there is no app to return to, so fall back to the error page.
+    """
+    redirect_uri = error.oauth_state.redirect_uri if error.oauth_state else None
+    if redirect_uri:
+        url = _with_query(redirect_uri, {"ow_error": "account_not_linked", "ow_provider": provider_name.value})
+        return RedirectResponse(url=url, status_code=303)
+    message = f"Your {provider_name.value} account has no linked data source yet."
+    if error.signup_url:
+        message += f" Finish setup at {error.signup_url}, then connect again."
+    return RedirectResponse(url=f"/api/v1/oauth/error?{urlencode({'message': message})}", status_code=303)
 
 
 @router.get("/success", tags=["System: OAuth"])
