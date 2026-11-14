@@ -15,7 +15,7 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
-from app.api.routes.v1.oauth import _account_not_linked_redirect, _with_query
+from app.api.routes.v1.oauth import _connection_refused_redirect, _with_query
 from app.schemas.enums import ProviderName
 from app.schemas.model_crud.credentials import OAuthState, OAuthTokenResponse
 from app.services.providers.factory import ProviderFactory
@@ -145,7 +145,7 @@ class TestRedirect:
         error.oauth_state = OAuthState(
             user_id=uuid4(), provider="google_health", redirect_uri="https://app.mybya.com/settings/integrations?tab=1"
         )
-        response = _account_not_linked_redirect(ProviderName.GOOGLE_HEALTH, error)
+        response = _connection_refused_redirect(ProviderName.GOOGLE_HEALTH, error)
         assert response.status_code == 303
         location = urlparse(response.headers["location"])
         assert location.netloc == "app.mybya.com"
@@ -159,7 +159,7 @@ class TestRedirect:
     def test_without_a_redirect_uses_the_error_page(self) -> None:
         error = ProviderAccountNotLinkedError("google_health", FITBIT_SIGNUP_URL)
         error.oauth_state = OAuthState(user_id=uuid4(), provider="google_health", redirect_uri=None)
-        response = _account_not_linked_redirect(ProviderName.GOOGLE_HEALTH, error)
+        response = _connection_refused_redirect(ProviderName.GOOGLE_HEALTH, error)
         location = urlparse(response.headers["location"])
         assert location.path == "/api/v1/oauth/error"
         assert FITBIT_SIGNUP_URL in parse_qs(location.query)["message"][0]
