@@ -31,24 +31,54 @@ from app.utils.structured_logging import log_structured
 logger = logging.getLogger(__name__)
 
 
-class ProviderAccountNotLinkedError(Exception):
-    """MyBya: consent succeeded, but the provider account behind it has no data to share.
+class ProviderConnectionRefusedError(Exception):
+    """MyBya: consent succeeded, but the grant cannot deliver data, so refuse to save it.
 
-    Google Health is the case that needs this: a Google account that has not been
-    through Fitbit's move to Google accounts passes OAuth normally, and then every
-    data call returns 400 ACCOUNT_NOT_LINKED. Saving that connection would show the
-    athlete "Connected" and then deliver nothing, silently. Raising this instead
-    lets the callback send them back with a reason they can act on.
+    Saving such a connection would show the athlete "Connected" and then deliver
+    nothing, silently. Raising this instead lets the callback send them back with
+    a reason they can act on. ``reason`` becomes the ``ow_error`` query value that
+    MyBya's Integrations page explains.
 
     ``oauth_state`` is filled in by ``handle_callback`` so the route knows where
     to send the athlete.
     """
 
-    def __init__(self, provider: str, signup_url: str | None = None) -> None:
-        super().__init__(f"{provider} account is not linked to a data source")
+    reason: str = "connection_refused"
+
+    def __init__(self, provider: str, message: str) -> None:
+        super().__init__(message)
         self.provider = provider
-        self.signup_url = signup_url
         self.oauth_state: OAuthState | None = None
+
+
+class ProviderAccountNotLinkedError(ProviderConnectionRefusedError):
+    """The provider account behind the consent has no data to share.
+
+    Google Health is the case that needs this: a Google account that has not been
+    through Fitbit's move to Google accounts passes OAuth normally, and then every
+    data call returns 400 ACCOUNT_NOT_LINKED.
+    """
+
+    reason = "account_not_linked"
+
+    def __init__(self, provider: str, signup_url: str | None = None) -> None:
+        super().__init__(provider, f"{provider} account is not linked to a data source")
+        self.signup_url = signup_url
+
+
+class ProviderMissingScopesError(ProviderConnectionRefusedError):
+    """The athlete left data permissions unticked on the consent screen.
+
+    Google shows each requested scope as its own checkbox (granular consent), and
+    a grant can come back with only ``openid email``. Every Health API call then
+    answers 403 "insufficient authentication scopes".
+    """
+
+    reason = "missing_scopes"
+
+    def __init__(self, provider: str, missing: list[str]) -> None:
+        super().__init__(provider, f"{provider} grant is missing scopes: {' '.join(missing)}")
+        self.missing = missing
 
 
 class BaseOAuthTemplate(ABC):
@@ -140,7 +170,7 @@ class BaseOAuthTemplate(ABC):
 
         try:
             user_info = self._get_provider_user_info(token_response, str(oauth_state.user_id))
-        except ProviderAccountNotLinkedError as e:
+        except ProviderConnectionRefusedError as e:
             # No connection is saved, so no connection.created goes out and no
             # backfill starts: the athlete is simply not connected yet.
             e.oauth_state = oauth_state

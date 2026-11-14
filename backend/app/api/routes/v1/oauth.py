@@ -20,7 +20,10 @@ from app.services import DeveloperDep, user_connection_service
 from app.services.provider_settings_service import ProviderSettingsService
 from app.services.providers.base_strategy import BaseProviderStrategy
 from app.services.providers.factory import ProviderFactory
-from app.services.providers.templates.base_oauth import ProviderAccountNotLinkedError
+from app.services.providers.templates.base_oauth import (
+    ProviderAccountNotLinkedError,
+    ProviderConnectionRefusedError,
+)
 
 router = APIRouter()
 factory = ProviderFactory()
@@ -102,8 +105,8 @@ def oauth_callback(
     assert strategy.oauth
     try:
         oauth_state = strategy.oauth.handle_callback(db, code, state)
-    except ProviderAccountNotLinkedError as e:
-        return _account_not_linked_redirect(provider_name, e)
+    except ProviderConnectionRefusedError as e:
+        return _connection_refused_redirect(provider_name, e)
 
     # Stamp last_synced_at=now so the first periodic sync uses the connection
     # timestamp as its live-sync cursor and won't attempt to pull all history.
@@ -151,19 +154,28 @@ def _with_query(url: str, extra: dict[str, str]) -> str:
     return urlunsplit(parts._replace(query=urlencode(query)))
 
 
-def _account_not_linked_redirect(provider_name: ProviderName, error: ProviderAccountNotLinkedError) -> RedirectResponse:
+def _connection_refused_redirect(
+    provider_name: ProviderName, error: ProviderConnectionRefusedError
+) -> RedirectResponse:
     """MyBya: send the athlete back to the app with a reason it can explain.
 
-    ``ow_error`` / ``ow_provider`` are read by MyBya's Integrations page. Without a
-    redirect_uri there is no app to return to, so fall back to the error page.
+    ``ow_error`` (the error's ``reason``) / ``ow_provider`` are read by MyBya's
+    Integrations page. Without a redirect_uri there is no app to return to, so
+    fall back to the error page.
     """
     redirect_uri = error.oauth_state.redirect_uri if error.oauth_state else None
     if redirect_uri:
-        url = _with_query(redirect_uri, {"ow_error": "account_not_linked", "ow_provider": provider_name.value})
+        url = _with_query(redirect_uri, {"ow_error": error.reason, "ow_provider": provider_name.value})
         return RedirectResponse(url=url, status_code=303)
-    message = f"Your {provider_name.value} account has no linked data source yet."
-    if error.signup_url:
-        message += f" Finish setup at {error.signup_url}, then connect again."
+    if isinstance(error, ProviderAccountNotLinkedError):
+        message = f"Your {provider_name.value} account has no linked data source yet."
+        if error.signup_url:
+            message += f" Finish setup at {error.signup_url}, then connect again."
+    else:
+        message = (
+            f"{provider_name.value} was not connected because some data permissions were left unticked. "
+            "Connect again and allow all of them."
+        )
     return RedirectResponse(url=f"/api/v1/oauth/error?{urlencode({'message': message})}", status_code=303)
 
 

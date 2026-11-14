@@ -13,13 +13,33 @@ from app.schemas.model_crud.credentials import (
     ProviderCredentials,
     ProviderEndpoints,
 )
-from app.services.providers.templates.base_oauth import BaseOAuthTemplate, ProviderAccountNotLinkedError
+from app.services.providers.templates.base_oauth import (
+    BaseOAuthTemplate,
+    ProviderAccountNotLinkedError,
+    ProviderMissingScopesError,
+)
 from app.utils.structured_logging import log_structured
 
 logger = logging.getLogger(__name__)
 
 
 FITBIT_SIGNUP_URL = "https://fitbit.google.com/auth/signup"
+
+HEALTH_SCOPE_PREFIX = "https://www.googleapis.com/auth/googlehealth."
+
+
+def _missing_health_scopes(requested: str, granted: str | None) -> list[str]:
+    """Return the requested Google Health scopes the athlete did not grant.
+
+    Google's consent screen lets the athlete untick each scope, and the token
+    response's ``scope`` lists what was actually granted. Only ``googlehealth.*``
+    scopes count: ``openid`` / ``email`` are not data. When Google omits
+    ``scope`` we cannot tell, so nothing is reported missing.
+    """
+    if granted is None:
+        return []
+    have = set(granted.split())
+    return [s for s in requested.split() if s.startswith(HEALTH_SCOPE_PREFIX) and s not in have]
 
 
 def _account_not_linked_signup_url(response: httpx.Response) -> str | None:
@@ -102,10 +122,26 @@ class GoogleOAuth(BaseOAuthTemplate):
         this user. Email (OIDC userinfo) is best-effort, for display only. Both calls
         are best-effort so a scope/permission gap never fails the whole connection.
 
-        The one failure that IS fatal (MyBya): the identity call answering
-        ACCOUNT_NOT_LINKED. That account has no Fitbit data behind it, so every
-        later call would fail too; raise instead of saving a dead connection.
+        Two failures ARE fatal (MyBya), because every later call would fail too;
+        raise instead of saving a dead connection:
+
+        - the athlete left any requested health scope unticked on Google's consent
+          screen (``ProviderMissingScopesError``);
+        - the identity call answers ACCOUNT_NOT_LINKED: that account has no Fitbit
+          data behind it (``ProviderAccountNotLinkedError``).
         """
+        missing = _missing_health_scopes(self.credentials.default_scope, token_response.scope)
+        if missing:
+            log_structured(
+                logger,
+                "warning",
+                "Google grant is missing health scopes; connection refused",
+                provider=self.provider_name,
+                task="get_provider_user_info",
+                user_id=user_id,
+                missing_scopes=" ".join(missing),
+            )
+            raise ProviderMissingScopesError(self.provider_name, missing)
         headers = {"Authorization": f"Bearer {token_response.access_token}"}
         return {
             "user_id": self._fetch(
